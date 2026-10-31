@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Two VPCs with public subnets, Internet Gateways, route tables,
+  and bidirectional VPC peering routes.
+
+Parameters:
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: Availability Zone for both public subnets.
+
+Resources:
+  VpcA:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC-A
+
+  VpcB:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC-B
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcA
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Ref AvailabilityZone
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: VPC-A-Public-Subnet
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcB
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !Ref AvailabilityZone
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: VPC-B-Public-Subnet
+
+  InternetGatewayA:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: VPC-A-IGW
+
+  InternetGatewayB:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: VPC-B-IGW
+
+  AttachGatewayA:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VpcA
+      InternetGatewayId: !Ref InternetGatewayA
+
+  AttachGatewayB:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VpcB
+      InternetGatewayId: !Ref InternetGatewayB
+
+  RouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcA
+      Tags:
+        - Key: Name
+          Value: VPC-A-Public-Route-Table
+
+  RouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcB
+      Tags:
+        - Key: Name
+          Value: VPC-B-Public-Route-Table
+
+  DefaultRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGatewayA
+    Properties:
+      RouteTableId: !Ref RouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayA
+
+  DefaultRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGatewayB
+    Properties:
+      RouteTableId: !Ref RouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayB
+
+  SubnetRouteAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref RouteTableA
+
+  SubnetRouteAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref RouteTableB
+
+  VpcPeering:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VpcA
+      PeerVpcId: !Ref VpcB
+      Tags:
+        - Key: Name
+          Value: VPC-A-to-VPC-B-Peering
+
+  RouteAToVpcB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableA
+      DestinationCidrBlock: 10.1.0.0/16
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+  RouteBToVpcA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableB
+      DestinationCidrBlock: 10.0.0.0/16
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+Outputs:
+  VpcAId:
+    Description: ID of VPC A
+    Value: !Ref VpcA
+  VpcBId:
+    Description: ID of VPC B
+    Value: !Ref VpcB
+  PeeringConnectionId:
+    Description: ID of the VPC peering connection
+    Value: !Ref VpcPeering
+  PublicSubnetAId:
+    Description: ID of VPC A public subnet
+    Value: !Ref PublicSubnetA
+  PublicSubnetBId:
+    Description: ID of VPC B public subnet
+    Value: !Ref PublicSubnetB
